@@ -1,0 +1,30 @@
+# Zig build artifacts
+zig-cache/
+zig-out/
+.zig-cache/
+
+# Test artifacts
+test_work/
+test_gemfiles/
+synthetic_gemfiles/
+benchmark_work/
+simple_test/
+*.lock
+*.lock.bin
+*.lock.bundler
+*.lock.gem_resolver
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Debug
+*.pdb
+*.ilk

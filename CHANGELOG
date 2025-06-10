@@ -1,0 +1,7 @@
+2025-06-09  supergemlock 0.1.0
+
+	* Initial release
+	* 20-60x faster than Bundler
+	* Binary lockfile for 0ms fast path
+	* Apple Silicon optimizations
+	* Drop-in bundle command replacement

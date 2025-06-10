@@ -1,0 +1,8 @@
+#!/bin/bash
+# Wrapper script to make zig-bundle behave exactly like bundle
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Execute zig-bundle with all arguments passed through
+exec "$SCRIPT_DIR/zig-out/bin/zig-bundle" "$@"

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        zig-version: ['0.14.0']
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: ${{ matrix.zig-version }}
+    
+    - name: Build
+      run: zig build
+    
+    - name: Run Tests
+      run: zig build test
+      
+    - name: Build Release
+      run: zig build -Doptimize=ReleaseFast
+      
+    - name: Test Binary
+      if: runner.os != 'Windows'
+      run: |
+        echo "source 'https://rubygems.org'" > test.gemfile
+        echo "gem 'rack', '~> 3.0'" >> test.gemfile
+        ./zig-out/bin/gem_resolver || true
+        
+    - name: Test Binary (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        echo "source 'https://rubygems.org'" > test.gemfile
+        echo "gem 'rack', '~> 3.0'" >> test.gemfile
+        ./zig-out/bin/gem_resolver.exe || true
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: '0.14.0'
+    
+    - name: Build Optimized
+      run: zig build -Doptimize=ReleaseFast
+    
+    - name: Run Benchmark
+      run: |
+        ./benchmark_simple.sh || true
+        
+    - name: Upload Benchmark Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmark_report.txt

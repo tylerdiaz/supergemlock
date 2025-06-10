@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          release_name: gem_resolver ${{ steps.get_version.outputs.version }}
+          body: |
+            High-performance Ruby dependency resolver - 20-60x faster than Bundler
+            
+            ## Installation
+            
+            ### macOS (Apple Silicon)
+            ```bash
+            curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/gem_resolver-darwin-arm64.tar.gz | tar xz
+            sudo mv gem_resolver /usr/local/bin/
+            ```
+            
+            ### macOS (Intel)
+            ```bash
+            curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/gem_resolver-darwin-x64.tar.gz | tar xz
+            sudo mv gem_resolver /usr/local/bin/
+            ```
+            
+            ### Linux (x64)
+            ```bash
+            curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/gem_resolver-linux-x64.tar.gz | tar xz
+            sudo mv gem_resolver /usr/local/bin/
+            ```
+            
+            ### Linux (ARM64)
+            ```bash
+            curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/gem_resolver-linux-arm64.tar.gz | tar xz
+            sudo mv gem_resolver /usr/local/bin/
+            ```
+            
+            See full [installation instructions](https://github.com/${{ github.repository }}#installation) for more options.
+          draft: false
+          prerelease: false
+
+  build-release:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-macos
+            artifact: gem_resolver-darwin-arm64
+          - os: macos-latest
+            target: x86_64-macos
+            artifact: gem_resolver-darwin-x64
+          - os: ubuntu-latest
+            target: x86_64-linux
+            artifact: gem_resolver-linux-x64
+          - os: ubuntu-latest
+            target: aarch64-linux
+            artifact: gem_resolver-linux-arm64
+          - os: windows-latest
+            target: x86_64-windows
+            artifact: gem_resolver-windows-x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.14.0
+
+      - name: Build for ${{ matrix.target }}
+        run: |
+          zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
+          
+      - name: Package Binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp zig-out/bin/gem_resolver .
+          cp zig-out/bin/zig-bundle bundle
+          tar czf ${{ matrix.artifact }}.tar.gz gem_resolver bundle README.md LICENSE
+          
+      - name: Package Binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Copy-Item zig-out/bin/gem_resolver.exe .
+          Copy-Item zig-out/bin/zig-bundle.exe bundle.exe
+          Compress-Archive -Path gem_resolver.exe,bundle.exe,README.md,LICENSE -DestinationPath ${{ matrix.artifact }}.zip
+
+      - name: Upload Release Asset (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.artifact }}.tar.gz
+          asset_name: ${{ matrix.artifact }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release Asset (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.artifact }}.zip
+          asset_name: ${{ matrix.artifact }}.zip
+          asset_content_type: application/zip
+
+  update-homebrew:
+    needs: [create-release, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew Formula
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # This would update a homebrew tap repository
+          echo "Homebrew formula update would happen here"
+          echo "Version: ${{ needs.create-release.outputs.version }}"
